@@ -1,3 +1,5 @@
+export const maxDuration = 60;
+
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import LogoutButton from "../logout-button";
