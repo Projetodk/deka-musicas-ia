@@ -1,4 +1,4 @@
-async function getAccessToken(): Promise<string> {
+export async function getDropboxAccessToken(): Promise<string> {
   const response = await fetch("https://api.dropboxapi.com/oauth2/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -22,7 +22,7 @@ function toDirectUrl(shareUrl: string): string {
   return shareUrl.replace("dl=0", "dl=1");
 }
 
-async function getOrCreateDirectLink(
+export async function criarOuBuscarLinkDireto(
   path: string,
   accessToken: string
 ): Promise<string> {
@@ -70,42 +70,4 @@ async function getOrCreateDirectLink(
   }
 
   return toDirectUrl(existingUrl);
-}
-
-export async function uploadToDropbox(
-  file: File,
-  fileName: string
-): Promise<string> {
-  const accessToken = await getAccessToken();
-  const arrayBuffer = await file.arrayBuffer();
-
-  const dropboxPath = `/${Date.now()}-${fileName}`;
-
-  const uploadResponse = await fetch(
-    "https://content.dropboxapi.com/2/files/upload",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/octet-stream",
-        "Dropbox-API-Arg": JSON.stringify({
-          path: dropboxPath,
-          mode: "add",
-          autorename: true,
-          mute: true,
-        }),
-      },
-      body: arrayBuffer,
-    }
-  );
-
-  if (!uploadResponse.ok) {
-    const errorText = await uploadResponse.text();
-    throw new Error(`Falha ao enviar arquivo para o Dropbox: ${errorText}`);
-  }
-
-  const uploadData = await uploadResponse.json();
-  const path = uploadData.path_lower as string;
-
-  return await getOrCreateDirectLink(path, accessToken);
 }

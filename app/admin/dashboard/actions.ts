@@ -1,31 +1,25 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { uploadToDropbox } from "@/lib/dropbox";
 import { revalidatePath } from "next/cache";
+
+type DadosMusica = {
+  nome: string;
+  artista: string;
+  album: string | null;
+  genero: string | null;
+  capaUrl: string | null;
+  arquivoUrl: string;
+};
 
 type ResultadoAcao = {
   success: boolean;
   message: string;
 };
 
-export async function adicionarMusica(
-  formData: FormData
+export async function salvarMusica(
+  dados: DadosMusica
 ): Promise<ResultadoAcao> {
-  const nome = (formData.get("nome") as string)?.trim();
-  const artista = (formData.get("artista") as string)?.trim();
-  const album = ((formData.get("album") as string) || "").trim() || null;
-  const genero = ((formData.get("genero") as string) || "").trim() || null;
-  const capaFile = formData.get("capa") as File | null;
-  const mp3File = formData.get("mp3") as File | null;
-
-  if (!nome || !artista || !mp3File || mp3File.size === 0) {
-    return {
-      success: false,
-      message: "Preencha nome, artista e selecione o arquivo MP3.",
-    };
-  }
-
   const supabase = await createClient();
 
   const {
@@ -40,35 +34,17 @@ export async function adicionarMusica(
   }
 
   try {
-    const arquivoUrl = await uploadToDropbox(mp3File, mp3File.name);
-
-    let capaUrl: string | null = null;
-    if (capaFile && capaFile.size > 0) {
-      const nomeArquivoCapa = `${Date.now()}-${capaFile.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("capas")
-        .upload(nomeArquivoCapa, capaFile);
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage
-        .from("capas")
-        .getPublicUrl(nomeArquivoCapa);
-
-      capaUrl = publicUrlData.publicUrl;
-    }
-
     const { count } = await supabase
       .from("musicas")
       .select("*", { count: "exact", head: true });
 
     const { error: insertError } = await supabase.from("musicas").insert({
-      nome,
-      artista,
-      album,
-      genero,
-      capa_url: capaUrl,
-      arquivo_url: arquivoUrl,
+      nome: dados.nome,
+      artista: dados.artista,
+      album: dados.album,
+      genero: dados.genero,
+      capa_url: dados.capaUrl,
+      arquivo_url: dados.arquivoUrl,
       ordem: count ?? 0,
     });
 
