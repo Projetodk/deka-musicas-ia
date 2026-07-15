@@ -2,29 +2,26 @@
 
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { obterTokenDeEnvio, gerarLinkDoArquivo } from "./dropbox-actions";
+import {
+  iniciarSessaoUpload,
+  enviarParteUpload,
+  finalizarUpload,
+} from "./dropbox-actions";
 import { salvarMusica } from "./actions";
+
+const TAMANHO_PARTE = 4 * 1024 * 1024; // 4MB — exigido pelo Dropbox
 
 type Etapa =
   | "idle"
-  | "preparando"
   | "enviando-mp3"
   | "gerando-link"
   | "enviando-capa"
   | "salvando";
 
-const MENSAGENS_ETAPA: Record<Etapa, string> = {
-  idle: "",
-  preparando: "Preparando envio...",
-  "enviando-mp3": "Enviando MP3 para o Dropbox...",
-  "gerando-link": "Gerando link de reprodução...",
-  "enviando-capa": "Enviando capa...",
-  salvando: "Salvando música...",
-};
-
 export default function NovaMusicaForm() {
   const formRef = useRef<HTMLFormElement>(null);
   const [etapa, setEtapa] = useState<Etapa>("idle");
+  const [progresso, setProgresso] = useState<string>("");
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -32,9 +29,50 @@ export default function NovaMusicaForm() {
 
   const loading = etapa !== "idle";
 
+  async function enviarMp3EmPartes(file: File): Promise<string> {
+    const partes: Blob[] = [];
+    for (let inicio = 0; inicio < file.size; inicio += TAMANHO_PARTE) {
+      partes.push(file.slice(inicio, inicio + TAMANHO_PARTE));
+    }
+    if (partes.length === 0) partes.push(file.slice(0, 0));
+
+    setProgresso(`Enviando parte 1 de ${partes.length}...`);
+    const startForm = new FormData();
+    startForm.append("chunk", partes[0]);
+    const { sessionId } = await iniciarSessaoUpload(startForm);
+    let offset = partes[0].size;
+
+    for (let i = 1; i < partes.length - 1; i++) {
+      setProgresso(`Enviando parte ${i + 1} de ${partes.length}...`);
+      const form = new FormData();
+      form.append("chunk", partes[i]);
+      form.append("sessionId", sessionId);
+      form.append("offset", String(offset));
+      await enviarParteUpload(form);
+      offset += partes[i].size;
+    }
+
+    const ultimaParte =
+      partes.length > 1 ? partes[partes.length - 1] : new Blob([]);
+
+    if (partes.length > 1) {
+      setProgresso(`Enviando parte ${partes.length} de ${partes.length}...`);
+    }
+
+    const finishForm = new FormData();
+    finishForm.append("chunk", ultimaParte);
+    finishForm.append("sessionId", sessionId);
+    finishForm.append("offset", String(offset));
+    finishForm.append("nomeArquivo", file.name);
+
+    const { url } = await finalizarUpload(finishForm);
+    return url;
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setMessage(null);
+    setProgresso("");
 
     const formData = new FormData(e.currentTarget);
     const nome = (formData.get("nome") as string)?.trim();
@@ -53,47 +91,13 @@ export default function NovaMusicaForm() {
     }
 
     try {
-      // 1) Pede um token temporário do Dropbox (não envia o arquivo ainda)
-      setEtapa("preparando");
-      const { accessToken } = await obterTokenDeEnvio();
-
-      // 2) Envia o MP3 direto do navegador para o Dropbox
       setEtapa("enviando-mp3");
-      const dropboxPath = `/${Date.now()}-${mp3File.name}`;
+      const arquivoUrl = await enviarMp3EmPartes(mp3File);
 
-      const uploadResponse = await fetch(
-        "https://content.dropboxapi.com/2/files/upload",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/octet-stream",
-            "Dropbox-API-Arg": JSON.stringify({
-              path: dropboxPath,
-              mode: "add",
-              autorename: true,
-              mute: true,
-            }),
-          },
-          body: mp3File,
-        }
-      );
-
-      if (!uploadResponse.ok) {
-        throw new Error("Falha ao enviar o MP3 para o Dropbox.");
-      }
-
-      const uploadData = await uploadResponse.json();
-      const pathSalvo = uploadData.path_lower as string;
-
-      // 3) Gera o link de reprodução
-      setEtapa("gerando-link");
-      const { url: arquivoUrl } = await gerarLinkDoArquivo(pathSalvo);
-
-      // 4) Envia a capa direto do navegador para o Supabase (se enviada)
       let capaUrl: string | null = null;
       if (capaFile && capaFile.size > 0) {
         setEtapa("enviando-capa");
+        setProgresso("");
         const supabase = createClient();
         const nomeArquivoCapa = `${Date.now()}-${capaFile.name}`;
 
@@ -110,7 +114,6 @@ export default function NovaMusicaForm() {
         capaUrl = publicUrlData.publicUrl;
       }
 
-      // 5) Salva tudo no banco de dados
       setEtapa("salvando");
       const resultado = await salvarMusica({
         nome,
@@ -137,8 +140,17 @@ export default function NovaMusicaForm() {
       });
     } finally {
       setEtapa("idle");
+      setProgresso("");
     }
   }
+
+  const MENSAGENS_ETAPA: Record<Etapa, string> = {
+    idle: "",
+    "enviando-mp3": progresso || "Enviando MP3...",
+    "gerando-link": "Gerando link de reprodução...",
+    "enviando-capa": "Enviando capa...",
+    salvando: "Salvando música...",
+  };
 
   return (
     <div className="mx-auto mt-10 max-w-4xl rounded-2xl bg-surface p-8">
