@@ -14,6 +14,13 @@ async function verificarLogin() {
   }
 }
 
+function sanitizarNomeArquivo(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove acentos (á, ç, ã, etc.)
+    .replace(/[^a-zA-Z0-9._-]/g, "-"); // troca espaços/símbolos por hífen
+}
+
 export async function iniciarSessaoUpload(formData: FormData) {
   await verificarLogin();
 
@@ -35,6 +42,7 @@ export async function iniciarSessaoUpload(formData: FormData) {
   );
 
   if (!response.ok) {
+    console.error("Erro ao iniciar sessão no Dropbox:", await response.text());
     throw new Error("Falha ao iniciar o envio para o Dropbox.");
   }
 
@@ -68,6 +76,7 @@ export async function enviarParteUpload(formData: FormData) {
   );
 
   if (!response.ok) {
+    console.error("Erro ao enviar parte para o Dropbox:", await response.text());
     throw new Error("Falha ao enviar parte do arquivo para o Dropbox.");
   }
 
@@ -84,7 +93,8 @@ export async function finalizarUpload(formData: FormData) {
   const accessToken = await getDropboxAccessToken();
   const arrayBuffer = await chunk.arrayBuffer();
 
-  const dropboxPath = `/${Date.now()}-${nomeArquivo}`;
+  const nomeSeguro = sanitizarNomeArquivo(nomeArquivo);
+  const dropboxPath = `/${Date.now()}-${nomeSeguro}`;
 
   const response = await fetch(
     "https://content.dropboxapi.com/2/files/upload_session/finish",
@@ -108,6 +118,7 @@ export async function finalizarUpload(formData: FormData) {
   );
 
   if (!response.ok) {
+    console.error("Erro ao finalizar envio no Dropbox:", await response.text());
     throw new Error("Falha ao finalizar o envio para o Dropbox.");
   }
 
