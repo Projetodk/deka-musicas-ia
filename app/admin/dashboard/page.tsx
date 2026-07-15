@@ -1,9 +1,10 @@
-export const maxDuration = 60;
+export const dynamic = "force-dynamic";
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import LogoutButton from "../logout-button";
 import NovaMusicaForm from "./nova-musica-form";
+import MusicaItem from "./musica-item";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -17,7 +18,7 @@ export default async function DashboardPage() {
 
   const { data: musicas } = await supabase
     .from("musicas")
-    .select("id, nome, artista, ordem")
+    .select("id, nome, artista, album, genero, capa_url, ordem")
     .order("ordem", { ascending: true });
 
   return (
@@ -42,17 +43,11 @@ export default async function DashboardPage() {
             Nenhuma música cadastrada ainda.
           </p>
         ) : (
-          <ul className="mt-4 flex flex-col gap-2">
+          <div className="mt-4 flex flex-col gap-2">
             {musicas.map((musica) => (
-              <li
-                key={musica.id}
-                className="rounded-lg bg-surface-elevated px-4 py-3 text-sm text-ink"
-              >
-                <span className="font-medium">{musica.nome}</span>
-                <span className="text-ink-muted"> — {musica.artista}</span>
-              </li>
+              <MusicaItem key={musica.id} musica={musica} />
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </main>
