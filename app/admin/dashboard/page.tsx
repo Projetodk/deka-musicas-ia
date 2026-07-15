@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import LogoutButton from "../logout-button";
 import NovaMusicaForm from "./nova-musica-form";
-import MusicaItem from "./musica-item";
+import MusicManager from "./music-manager";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -37,18 +37,12 @@ export default async function DashboardPage() {
 
       <div className="mx-auto mt-10 max-w-4xl rounded-2xl bg-surface p-8">
         <h2 className="text-lg font-semibold text-ink">Suas músicas</h2>
+        <p className="mt-1 text-xs text-ink-muted">
+          Use as setinhas para mudar a ordem em que as músicas aparecem no
+          site.
+        </p>
 
-        {!musicas || musicas.length === 0 ? (
-          <p className="mt-4 text-sm text-ink-muted">
-            Nenhuma música cadastrada ainda.
-          </p>
-        ) : (
-          <div className="mt-4 flex flex-col gap-2">
-            {musicas.map((musica) => (
-              <MusicaItem key={musica.id} musica={musica} />
-            ))}
-          </div>
-        )}
+        <MusicManager musicasIniciais={musicas ?? []} />
       </div>
     </main>
   );
