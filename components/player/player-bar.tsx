@@ -1,6 +1,16 @@
 "use client";
 
-import { Play, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  Repeat,
+  Repeat1,
+  Shuffle,
+  Heart,
+} from "lucide-react";
 import { usePlayer } from "@/components/player/player-context";
 
 function formatarTempo(segundos: number): string {
@@ -18,11 +28,17 @@ export default function PlayerBar() {
     currentTime,
     duration,
     volume,
+    repeatMode,
+    shuffle,
     togglePlay,
     next,
     previous,
     seek,
     setVolume,
+    toggleRepeat,
+    toggleShuffle,
+    toggleFavorito,
+    isFavorito,
   } = usePlayer();
 
   if (currentIndex === null) return null;
@@ -31,7 +47,7 @@ export default function PlayerBar() {
 
   return (
     <div className="fixed inset-x-0 bottom-0 border-t border-surface-elevated bg-surface px-4 py-3">
-      <div className="mx-auto flex max-w-3xl items-center gap-4">
+      <div className="mx-auto flex max-w-3xl items-center gap-3">
         <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-surface-elevated">
           {musica.capa_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -43,15 +59,36 @@ export default function PlayerBar() {
           ) : null}
         </div>
 
-        <div className="w-24 min-w-0 shrink-0 sm:w-40">
+        <div className="hidden w-24 min-w-0 shrink-0 sm:block sm:w-40">
           <p className="truncate text-sm font-medium text-ink">
             {musica.nome}
           </p>
           <p className="truncate text-xs text-ink-muted">{musica.artista}</p>
         </div>
 
+        <button
+          onClick={() => toggleFavorito(musica.id)}
+          aria-label="Favoritar"
+          className="hidden shrink-0 text-ink-muted transition hover:text-accent-secondary sm:block"
+        >
+          <Heart
+            size={16}
+            fill={isFavorito(musica.id) ? "currentColor" : "none"}
+            className={isFavorito(musica.id) ? "text-accent-secondary" : ""}
+          />
+        </button>
+
         <div className="flex flex-1 flex-col gap-1">
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={toggleShuffle}
+              aria-label="Aleatório"
+              className={`transition hover:text-ink ${
+                shuffle ? "text-accent" : "text-ink-muted"
+              }`}
+            >
+              <Shuffle size={16} />
+            </button>
             <button
               onClick={previous}
               aria-label="Anterior"
@@ -76,6 +113,19 @@ export default function PlayerBar() {
               className="text-ink-muted transition hover:text-ink"
             >
               <SkipForward size={18} fill="currentColor" />
+            </button>
+            <button
+              onClick={toggleRepeat}
+              aria-label="Repetir"
+              className={`transition hover:text-ink ${
+                repeatMode !== "off" ? "text-accent" : "text-ink-muted"
+              }`}
+            >
+              {repeatMode === "one" ? (
+                <Repeat1 size={16} />
+              ) : (
+                <Repeat size={16} />
+              )}
             </button>
           </div>
 
