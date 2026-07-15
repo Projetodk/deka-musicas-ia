@@ -147,3 +147,38 @@ export async function excluirMusica(id: string): Promise<ResultadoAcao> {
     };
   }
 }
+
+export async function reordenarMusicas(
+  ids: string[]
+): Promise<ResultadoAcao> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      success: false,
+      message: "Sessão expirada. Faça login novamente.",
+    };
+  }
+
+  try {
+    await Promise.all(
+      ids.map((id, index) =>
+        supabase.from("musicas").update({ ordem: index }).eq("id", id)
+      )
+    );
+
+    revalidatePath("/admin/dashboard");
+    revalidatePath("/");
+    return { success: true, message: "Ordem atualizada." };
+  } catch (err) {
+    console.error(err);
+    return {
+      success: false,
+      message: "Não foi possível reordenar as músicas.",
+    };
+  }
+}
