@@ -3,8 +3,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getDropboxAccessToken, criarOuBuscarLinkDireto } from "@/lib/dropbox";
 
-export const maxDuration = 60;
-
 async function verificarLogin() {
   const supabase = await createClient();
   const {
