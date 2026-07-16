@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { redimensionarImagem } from "@/lib/image-resize";
 import { atualizarMusica, excluirMusica } from "./actions";
 
 type Musica = {
@@ -45,13 +46,14 @@ export default function MusicaItem({ musica }: { musica: Musica }) {
       let capaUrl: string | undefined = undefined;
 
       if (novaCapa) {
+        const capaRedimensionada = await redimensionarImagem(novaCapa);
         const supabase = createClient();
         const nomeArquivoCapa = `${Date.now()}-${sanitizarNomeArquivo(
-          novaCapa.name
+          capaRedimensionada.name
         )}`;
         const { error: uploadError } = await supabase.storage
           .from("capas")
-          .upload(nomeArquivoCapa, novaCapa);
+          .upload(nomeArquivoCapa, capaRedimensionada);
 
         if (uploadError) throw uploadError;
 
