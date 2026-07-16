@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { redimensionarImagem } from "@/lib/image-resize";
 import {
   iniciarSessaoUpload,
   enviarParteUpload,
@@ -10,6 +11,13 @@ import {
 import { salvarMusica } from "./actions";
 
 const TAMANHO_PARTE = 4 * 1024 * 1024; // 4MB — exigido pelo Dropbox
+
+function sanitizarNomeArquivo(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove acentos (á, ç, ã, etc.)
+    .replace(/[^a-zA-Z0-9._-]/g, "-"); // troca espaços/símbolos por hífen
+}
 
 type Etapa =
   | "idle"
@@ -98,12 +106,15 @@ export default function NovaMusicaForm() {
       if (capaFile && capaFile.size > 0) {
         setEtapa("enviando-capa");
         setProgresso("");
+        const capaRedimensionada = await redimensionarImagem(capaFile);
         const supabase = createClient();
-        const nomeArquivoCapa = `${Date.now()}-${capaFile.name}`;
+        const nomeArquivoCapa = `${Date.now()}-${sanitizarNomeArquivo(
+          capaRedimensionada.name
+        )}`;
 
         const { error: uploadError } = await supabase.storage
           .from("capas")
-          .upload(nomeArquivoCapa, capaFile);
+          .upload(nomeArquivoCapa, capaRedimensionada);
 
         if (uploadError) throw uploadError;
 
