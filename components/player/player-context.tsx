@@ -22,6 +22,8 @@ export type Musica = {
 export type RepeatMode = "off" | "all" | "one";
 
 const CHAVE_FAVORITOS = "deka-musicas-favoritos";
+const CHAVE_BAIXADAS = "deka-musicas-baixadas";
+const NOME_CACHE_OFFLINE = "deka-musicas-offline-v1";
 
 type PlayerContextType = {
   playlist: Musica[];
@@ -33,6 +35,7 @@ type PlayerContextType = {
   repeatMode: RepeatMode;
   shuffle: boolean;
   favoritos: string[];
+  baixadas: string[];
   playSong: (index: number) => void;
   togglePlay: () => void;
   next: () => void;
@@ -43,6 +46,9 @@ type PlayerContextType = {
   toggleShuffle: () => void;
   toggleFavorito: (id: string) => void;
   isFavorito: (id: string) => boolean;
+  baixarMusica: (musica: Musica) => Promise<void>;
+  removerDownload: (musica: Musica) => Promise<void>;
+  isBaixada: (id: string) => boolean;
 };
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
@@ -80,14 +86,18 @@ export function PlayerProvider({
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("off");
   const [shuffle, setShuffle] = useState(false);
   const [favoritos, setFavoritos] = useState<string[]>([]);
+  const [baixadas, setBaixadas] = useState<string[]>([]);
 
-  // Carrega favoritos salvos no aparelho, ao abrir o site
+  // Carrega favoritos e downloads salvos no aparelho, ao abrir o site
   useEffect(() => {
     try {
-      const salvos = localStorage.getItem(CHAVE_FAVORITOS);
-      if (salvos) setFavoritos(JSON.parse(salvos));
+      const favoritosSalvos = localStorage.getItem(CHAVE_FAVORITOS);
+      if (favoritosSalvos) setFavoritos(JSON.parse(favoritosSalvos));
+
+      const baixadasSalvas = localStorage.getItem(CHAVE_BAIXADAS);
+      if (baixadasSalvas) setBaixadas(JSON.parse(baixadasSalvas));
     } catch {
-      // localStorage indisponível: segue sem favoritos salvos
+      // localStorage indisponível: segue sem dados salvos
     }
   }, []);
 
@@ -107,6 +117,62 @@ export function PlayerProvider({
 
   function isFavorito(id: string) {
     return favoritos.includes(id);
+  }
+
+  async function baixarMusica(musica: Musica) {
+    try {
+      if ("caches" in window) {
+        const cache = await caches.open(NOME_CACHE_OFFLINE);
+        const urls = [musica.arquivo_url];
+        if (musica.capa_url) urls.push(musica.capa_url);
+        await Promise.all(
+          urls.map((url) =>
+            cache.add(url).catch((err) => {
+              console.error("Erro ao guardar no cache:", url, err);
+            })
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Erro ao baixar música para offline:", err);
+    }
+
+    setBaixadas((atual) => {
+      if (atual.includes(musica.id)) return atual;
+      const novo = [...atual, musica.id];
+      try {
+        localStorage.setItem(CHAVE_BAIXADAS, JSON.stringify(novo));
+      } catch {
+        // segue sem salvar se não for possível
+      }
+      return novo;
+    });
+  }
+
+  async function removerDownload(musica: Musica) {
+    try {
+      if ("caches" in window) {
+        const cache = await caches.open(NOME_CACHE_OFFLINE);
+        await cache.delete(musica.arquivo_url);
+        if (musica.capa_url) await cache.delete(musica.capa_url);
+      }
+    } catch {
+      // segue mesmo se não conseguir limpar o cache
+    }
+
+    setBaixadas((atual) => {
+      const novo = atual.filter((id) => id !== musica.id);
+      try {
+        localStorage.setItem(CHAVE_BAIXADAS, JSON.stringify(novo));
+      } catch {
+        // segue sem salvar se não for possível
+      }
+      return novo;
+    });
+  }
+
+  function isBaixada(id: string) {
+    return baixadas.includes(id);
   }
 
   function next() {
@@ -240,6 +306,7 @@ export function PlayerProvider({
         repeatMode,
         shuffle,
         favoritos,
+        baixadas,
         playSong,
         togglePlay,
         next,
@@ -250,6 +317,9 @@ export function PlayerProvider({
         toggleShuffle,
         toggleFavorito,
         isFavorito,
+        baixarMusica,
+        removerDownload,
+        isBaixada,
       }}
     >
       {children}
