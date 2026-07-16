@@ -1,13 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { Heart } from "lucide-react";
+import { Heart, Download, Check, Loader2 } from "lucide-react";
 import { usePlayer, type Musica } from "@/components/player/player-context";
 
 export default function MusicList({ musicas }: { musicas: Musica[] }) {
-  const { currentIndex, isPlaying, playSong, isFavorito, toggleFavorito } =
-    usePlayer();
+  const {
+    currentIndex,
+    isPlaying,
+    playSong,
+    isFavorito,
+    toggleFavorito,
+    isBaixada,
+    baixarMusica,
+    removerDownload,
+  } = usePlayer();
   const [somenteFavoritas, setSomenteFavoritas] = useState(false);
+  const [baixando, setBaixando] = useState<Set<string>>(new Set());
 
   if (musicas.length === 0) {
     return (
@@ -20,6 +29,20 @@ export default function MusicList({ musicas }: { musicas: Musica[] }) {
   const listaExibida = somenteFavoritas
     ? musicas.filter((m) => isFavorito(m.id))
     : musicas;
+
+  async function handleDownload(musica: Musica) {
+    if (isBaixada(musica.id)) {
+      await removerDownload(musica);
+      return;
+    }
+    setBaixando((atual) => new Set(atual).add(musica.id));
+    await baixarMusica(musica);
+    setBaixando((atual) => {
+      const novo = new Set(atual);
+      novo.delete(musica.id);
+      return novo;
+    });
+  }
 
   return (
     <div className="mx-auto mt-6 max-w-3xl px-4 pb-32">
@@ -56,10 +79,13 @@ export default function MusicList({ musicas }: { musicas: Musica[] }) {
           {listaExibida.map((musica) => {
             const index = musicas.findIndex((m) => m.id === musica.id);
             const tocandoAgora = currentIndex === index;
+            const estaBaixando = baixando.has(musica.id);
+            const jaBaixada = isBaixada(musica.id);
+
             return (
               <div
                 key={musica.id}
-                className={`flex items-center gap-4 rounded-xl px-4 py-3 transition hover:bg-surface-elevated ${
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 transition hover:bg-surface-elevated ${
                   tocandoAgora ? "bg-surface-elevated" : "bg-surface"
                 }`}
               >
@@ -93,6 +119,32 @@ export default function MusicList({ musicas }: { musicas: Musica[] }) {
                     <span className="shrink-0 text-xs text-accent">
                       tocando
                     </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => handleDownload(musica)}
+                  disabled={estaBaixando}
+                  aria-label={
+                    jaBaixada ? "Remover download" : "Baixar para offline"
+                  }
+                  className={`shrink-0 transition ${
+                    jaBaixada
+                      ? "text-accent"
+                      : "text-ink-muted hover:text-ink"
+                  }`}
+                  title={
+                    jaBaixada
+                      ? "Disponível offline (toque para remover)"
+                      : "Baixar para ouvir offline"
+                  }
+                >
+                  {estaBaixando ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : jaBaixada ? (
+                    <Check size={18} />
+                  ) : (
+                    <Download size={18} />
                   )}
                 </button>
 
