@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Heart, Download, Check, Loader2 } from "lucide-react";
 import { usePlayer, type Musica } from "@/components/player/player-context";
 
@@ -16,7 +16,18 @@ export default function MusicList({ musicas }: { musicas: Musica[] }) {
     removerDownload,
   } = usePlayer();
   const [somenteFavoritas, setSomenteFavoritas] = useState(false);
+  const [generoSelecionado, setGeneroSelecionado] = useState<string | null>(
+    null
+  );
   const [baixando, setBaixando] = useState<Set<string>>(new Set());
+
+  const generos = useMemo(() => {
+    const unicos = new Set<string>();
+    musicas.forEach((m) => {
+      if (m.genero && m.genero.trim()) unicos.add(m.genero.trim());
+    });
+    return Array.from(unicos).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [musicas]);
 
   if (musicas.length === 0) {
     return (
@@ -26,9 +37,11 @@ export default function MusicList({ musicas }: { musicas: Musica[] }) {
     );
   }
 
-  const listaExibida = somenteFavoritas
-    ? musicas.filter((m) => isFavorito(m.id))
-    : musicas;
+  const listaExibida = musicas.filter((m) => {
+    const passaFavoritas = !somenteFavoritas || isFavorito(m.id);
+    const passaGenero = !generoSelecionado || m.genero === generoSelecionado;
+    return passaFavoritas && passaGenero;
+  });
 
   async function handleDownload(musica: Musica) {
     if (isBaixada(musica.id)) {
@@ -69,10 +82,39 @@ export default function MusicList({ musicas }: { musicas: Musica[] }) {
         </button>
       </div>
 
+      {generos.length > 0 && (
+        <div className="mb-4 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => setGeneroSelecionado(null)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+              generoSelecionado === null
+                ? "bg-accent-secondary text-white"
+                : "bg-surface text-ink-muted hover:text-ink"
+            }`}
+          >
+            Todos os gêneros
+          </button>
+          {generos.map((genero) => (
+            <button
+              key={genero}
+              onClick={() => setGeneroSelecionado(genero)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                generoSelecionado === genero
+                  ? "bg-accent-secondary text-white"
+                  : "bg-surface text-ink-muted hover:text-ink"
+              }`}
+            >
+              {genero}
+            </button>
+          ))}
+        </div>
+      )}
+
       {listaExibida.length === 0 ? (
         <p className="mt-8 text-center text-sm text-ink-muted">
-          Nenhuma música favoritada ainda. Toque no coração de uma música
-          para adicionar.
+          {somenteFavoritas
+            ? "Nenhuma música favoritada ainda. Toque no coração de uma música para adicionar."
+            : "Nenhuma música encontrada nessa categoria."}
         </p>
       ) : (
         <div className="flex flex-col gap-2">
